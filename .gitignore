@@ -1,0 +1,13 @@
+# Node
+node_modules/
+.env
+server/temp/
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# Build
+dist/
+build/
