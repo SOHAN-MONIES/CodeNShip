@@ -21,7 +21,10 @@ import {
     FileCode,
     Loader2,
     Cpu,
-    Wand2
+    Wand2,
+    Globe,
+    Rocket,
+    Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +48,8 @@ export default function ProjectWorkspace() {
         wordWrap: false,
         tabSize: 4,
     });
+    const [isDeploying, setIsDeploying] = useState(false);
+    const [isAskingAI, setIsAskingAI] = useState(false);
 
     function buildTree(flatFiles: any[]): FileNode[] {
         const map: Record<string, any> = {};
@@ -214,6 +219,74 @@ export default function ProjectWorkspace() {
         }
     };
 
+    const handleDeploy = async () => {
+        if (!selectedFile || !code) return;
+        setIsDeploying(true);
+
+        try {
+            const res = await fetch("http://localhost:8000/api/deployments", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    projectId, 
+                    fileId: selectedFile.id, 
+                    content: code 
+                }),
+            });
+
+            if (!res.ok) {
+                throw new Error("Deploy failed");
+            }
+
+            const data = await res.json();
+            const deployUrl = `http://localhost:8000/d/${data.slug}`;
+            
+            // For now just alert the URL, we could also open it in a new tab or show a toast
+            alert(`Deployed successfully! View at: ${deployUrl}`);
+            window.open(deployUrl, "_blank");
+        } catch (err) {
+            console.error("Deploy error:", err);
+            alert("Deployment failed.");
+        } finally {
+            setIsDeploying(false);
+        }
+    };
+
+    const handleAskAI = async () => {
+        if (!input.trim()) {
+            setOutput("Please enter a prompt in the Program Input box below to ask the AI.");
+            return;
+        }
+
+        setIsAskingAI(true);
+        setOutput("Asking AI (phi3)...\n");
+
+        try {
+            const res = await fetch("http://localhost:8000/api/ai/ask", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    code,
+                    language,
+                    prompt: input,
+                }),
+            });
+
+            const data = await res.json();
+            
+            if (data.error) {
+                setOutput(`Error: ${data.error}`);
+            } else {
+                setOutput(`🤖 AI Response:\n\n${data.result}`);
+            }
+        } catch (err) {
+            console.error("AI error:", err);
+            setOutput("Failed to communicate with AI.");
+        } finally {
+            setIsAskingAI(false);
+        }
+    };
+
     return (
         <div className="h-[calc(100vh-40px)] w-full">
 
@@ -282,6 +355,23 @@ export default function ProjectWorkspace() {
                                                 Save
                                             </Button>
 
+                                            {/* ASK AI */}
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleAskAI}
+                                                disabled={isAskingAI}
+                                                className="border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-400 h-8 font-medium transition-all active:scale-95"
+                                                title="Ask AI with Ollama"
+                                            >
+                                                {isAskingAI ? (
+                                                    <Loader2 size={14} className="mr-1.5 animate-spin" />
+                                                ) : (
+                                                    <Sparkles size={14} className="mr-1.5" />
+                                                )}
+                                                Ask AI
+                                            </Button>
+
                                             {/* FORMAT */}
                                             <Button
                                                 variant="outline"
@@ -294,20 +384,39 @@ export default function ProjectWorkspace() {
                                                 Format
                                             </Button>
 
+                                            {/* DEPLOY (HTML ONLY) */}
+                                            {language === "html" && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={handleDeploy}
+                                                    disabled={isDeploying}
+                                                    className="bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20 h-8 font-semibold transition-all active:scale-95 disabled:opacity-50"
+                                                >
+                                                    {isDeploying ? (
+                                                        <Loader2 size={14} className="mr-1.5 animate-spin" />
+                                                    ) : (
+                                                        <Rocket size={14} className="mr-1.5 fill-current" />
+                                                    )}
+                                                    Deploy
+                                                </Button>
+                                            )}
+
                                             {/* RUN */}
-                                            <Button
-                                                size="sm"
-                                                onClick={handleRun}
-                                                disabled={isRunning}
-                                                className="bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20 h-8 font-semibold transition-all active:scale-95 disabled:opacity-50"
-                                            >
-                                                {isRunning ? (
-                                                    <Loader2 size={14} className="mr-1.5 animate-spin" />
-                                                ) : (
-                                                    <Play size={14} className="mr-1.5 fill-current" />
-                                                )}
-                                                {isRunning ? "Running..." : "Run"}
-                                            </Button>
+                                            {language !== "html" && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={handleRun}
+                                                    disabled={isRunning}
+                                                    className="bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20 h-8 font-semibold transition-all active:scale-95 disabled:opacity-50"
+                                                >
+                                                    {isRunning ? (
+                                                        <Loader2 size={14} className="mr-1.5 animate-spin" />
+                                                    ) : (
+                                                        <Play size={14} className="mr-1.5 fill-current" />
+                                                    )}
+                                                    {isRunning ? "Running..." : "Run"}
+                                                </Button>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -315,28 +424,72 @@ export default function ProjectWorkspace() {
 
                                 <div className="flex-1 min-h-0">
                                     {selectedFile ? (
-                                        <Editor
-                                            height="100%"
-                                            theme={editorTheme}
-                                            language={language}
-                                            value={code}
-                                            options={{
-                                                automaticLayout: true,
-                                                minimap: { enabled: editorSettings.minimap },
-                                                fontSize: editorSettings.fontSize,
-                                                wordWrap: editorSettings.wordWrap ? "on" : "off",
-                                                tabSize: editorSettings.tabSize,
-                                                fontFamily: "var(--font-geist-mono)",
-                                                padding: { top: 15 },
-                                                scrollbar: {
-                                                    vertical: "visible",
-                                                    horizontal: "visible",
-                                                },
-                                            }}
-                                            onChange={(val) =>
-                                                setCode(val || "")
-                                            }
-                                        />
+                                        language === "html" ? (
+                                            <ResizablePanelGroup orientation="horizontal">
+                                                <ResizablePanel defaultSize={50} minSize={20}>
+                                                    <Editor
+                                                        height="100%"
+                                                        theme={editorTheme}
+                                                        language={language}
+                                                        value={code}
+                                                        options={{
+                                                            automaticLayout: true,
+                                                            minimap: { enabled: editorSettings.minimap },
+                                                            fontSize: editorSettings.fontSize,
+                                                            wordWrap: editorSettings.wordWrap ? "on" : "off",
+                                                            tabSize: editorSettings.tabSize,
+                                                            fontFamily: "var(--font-geist-mono)",
+                                                            padding: { top: 15 },
+                                                            scrollbar: {
+                                                                vertical: "visible",
+                                                                horizontal: "visible",
+                                                            },
+                                                        }}
+                                                        onChange={(val) => setCode(val || "")}
+                                                    />
+                                                </ResizablePanel>
+                                                <ResizableHandle withHandle />
+                                                <ResizablePanel defaultSize={50} minSize={20}>
+                                                    <div className="h-full flex flex-col border-l border-border bg-white dark:bg-zinc-950">
+                                                        <div className="h-10 px-4 flex items-center justify-between border-b border-border text-xs bg-muted/30 backdrop-blur-sm">
+                                                            <div className="flex items-center gap-2 text-primary">
+                                                                <Globe size={14} />
+                                                                <span className="font-semibold uppercase tracking-widest text-[10px]">Browser Preview</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex-1 bg-white overflow-hidden pointer-events-auto">
+                                                            <iframe 
+                                                                srcDoc={code} 
+                                                                className="w-full h-full border-0 outline-none bg-white" 
+                                                                title="HTML Preview"
+                                                                sandbox="allow-scripts allow-modals"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </ResizablePanel>
+                                            </ResizablePanelGroup>
+                                        ) : (
+                                            <Editor
+                                                height="100%"
+                                                theme={editorTheme}
+                                                language={language}
+                                                value={code}
+                                                options={{
+                                                    automaticLayout: true,
+                                                    minimap: { enabled: editorSettings.minimap },
+                                                    fontSize: editorSettings.fontSize,
+                                                    wordWrap: editorSettings.wordWrap ? "on" : "off",
+                                                    tabSize: editorSettings.tabSize,
+                                                    fontFamily: "var(--font-geist-mono)",
+                                                    padding: { top: 15 },
+                                                    scrollbar: {
+                                                        vertical: "visible",
+                                                        horizontal: "visible",
+                                                    },
+                                                }}
+                                                onChange={(val) => setCode(val || "")}
+                                            />
+                                        )
                                     ) : (
                                         <div className="h-full flex items-center justify-center text-muted-foreground">
                                             Select a file to start coding
@@ -387,10 +540,10 @@ export default function ProjectWorkspace() {
                                 <div className="group relative flex flex-col border-b border-border bg-muted/10">
                                     <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground pointer-events-none group-focus-within:text-primary transition-colors uppercase tracking-wider">
                                         <Cpu size={12} />
-                                        Program Input
+                                        Program Input / AI Prompt
                                     </div>
                                     <textarea
-                                        placeholder="Enter test inputs here..."
+                                        placeholder="Enter program input, or ask AI a question here..."
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
                                         className="bg-transparent text-foreground text-sm p-4 pt-8 outline-none resize-none h-28 focus:bg-accent/50 transition-all font-mono placeholder:text-muted-foreground/60 dark:placeholder:text-muted-foreground/30 selection:bg-primary/30"
@@ -398,7 +551,7 @@ export default function ProjectWorkspace() {
                                 </div>
 
                                 {/* OUTPUT */}
-                                <div className="flex-1 p-5 overflow-auto text-sm font-mono text-foreground whitespace-pre-wrap selection:bg-primary/30">
+                                <div className="flex-1 min-h-0 p-5 overflow-auto text-sm font-mono text-foreground whitespace-pre-wrap selection:bg-primary/30">
                                     {output ? (
                                         <div className={cn(
                                             "animate-in fade-in slide-in-from-left-2 duration-300",

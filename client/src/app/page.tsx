@@ -160,6 +160,8 @@ export default function Home(): JSX.Element {
                 </section>
 
             </main>
+            // Todo : Add login fallback
+
 
             <Footer />
         </div>
