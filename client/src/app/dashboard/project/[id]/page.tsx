@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { io, Socket } from "socket.io-client";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "next-themes";
 import {
@@ -24,7 +25,8 @@ import {
     Wand2,
     Globe,
     Rocket,
-    Sparkles
+    Sparkles,
+    Share2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +52,9 @@ export default function ProjectWorkspace() {
     });
     const [isDeploying, setIsDeploying] = useState(false);
     const [isAskingAI, setIsAskingAI] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
+
+    const socketRef = useRef<Socket | null>(null);
 
     function buildTree(flatFiles: any[]): FileNode[] {
         const map: Record<string, any> = {};
@@ -98,7 +103,29 @@ export default function ProjectWorkspace() {
                 console.error("Failed to parse editor settings", e);
             }
         }
-    }, [fetchFiles]);
+        
+        // Initialize Socket.io
+        socketRef.current = io("http://localhost:8000");
+
+        socketRef.current.on("connect", () => {
+            if (projectId) {
+                socketRef.current?.emit("join-room", projectId);
+            }
+        });
+
+        socketRef.current.on("code-change", ({ fileId, content }: { fileId: string, content: string }) => {
+            setSelectedFile(prev => {
+                if (prev && prev.id === fileId) {
+                    setCode(content);
+                }
+                return prev;
+            });
+        });
+
+        return () => {
+            socketRef.current?.disconnect();
+        };
+    }, [fetchFiles, projectId]);
 
     if (!mounted) return null;
 
@@ -138,6 +165,19 @@ export default function ProjectWorkspace() {
         }
 
         setIsRunning(false);
+    };
+
+    const handleEditorChange = (val: string | undefined) => {
+        const newCode = val || "";
+        setCode(newCode);
+
+        if (selectedFile) {
+            socketRef.current?.emit("code-change", {
+                projectId,
+                fileId: selectedFile.id,
+                content: newCode
+            });
+        }
     };
 
     const handleFileSelect = async (
@@ -249,6 +289,17 @@ export default function ProjectWorkspace() {
             alert("Deployment failed.");
         } finally {
             setIsDeploying(false);
+        }
+    };
+
+    const handleShare = async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (err) {
+            console.error("Failed to copy link:", err);
+            alert("Failed to copy link.");
         }
     };
 
@@ -417,6 +468,18 @@ export default function ProjectWorkspace() {
                                                     {isRunning ? "Running..." : "Run"}
                                                 </Button>
                                             )}
+
+                                            {/* SHARE */}
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleShare}
+                                                className="border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-400 h-8 font-medium transition-all active:scale-95"
+                                                title="Share Collaborative Link"
+                                            >
+                                                <Share2 size={14} className="mr-1.5" />
+                                                {isCopied ? "Copied!" : "Share"}
+                                            </Button>
                                         </div>
                                     )}
                                 </div>
@@ -445,7 +508,7 @@ export default function ProjectWorkspace() {
                                                                 horizontal: "visible",
                                                             },
                                                         }}
-                                                        onChange={(val) => setCode(val || "")}
+                                                        onChange={handleEditorChange}
                                                     />
                                                 </ResizablePanel>
                                                 <ResizableHandle withHandle />
@@ -487,7 +550,7 @@ export default function ProjectWorkspace() {
                                                         horizontal: "visible",
                                                     },
                                                 }}
-                                                onChange={(val) => setCode(val || "")}
+                                                onChange={handleEditorChange}
                                             />
                                         )
                                     ) : (

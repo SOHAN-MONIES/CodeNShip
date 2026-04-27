@@ -16,7 +16,8 @@
     "drizzle-orm": "^0.45.1",
     "express": "^5.2.1",
     "pg": "^8.18.0",
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.1",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

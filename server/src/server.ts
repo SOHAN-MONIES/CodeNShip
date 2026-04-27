@@ -1,4 +1,6 @@
 import express from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import cors from "cors";
 import "dotenv/config"
 import projectRoutes from "./routes/project-routes";
@@ -38,6 +40,32 @@ app.get("/d/:slug", async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*", // allow all origins for now
+        methods: ["GET", "POST"]
+    }
+});
+
+io.on("connection", (socket) => {
+    console.log(`[Socket] User connected: ${socket.id}`);
+
+    socket.on("join-room", (projectId: string) => {
+        socket.join(projectId);
+        console.log(`[Socket] ${socket.id} joined room: ${projectId}`);
+    });
+
+    socket.on("code-change", ({ projectId, fileId, content }: { projectId: string, fileId: string, content: string }) => {
+        // Broadcast the change to everyone else in the room
+        socket.to(projectId).emit("code-change", { fileId, content });
+    });
+
+    socket.on("disconnect", () => {
+        console.log(`[Socket] User disconnected: ${socket.id}`);
+    });
+});
+
+httpServer.listen(PORT, () => {
     console.log(`🚀 Server running on ${PORT}`);
 });

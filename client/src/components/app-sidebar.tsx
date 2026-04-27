@@ -21,7 +21,7 @@ import {
     Settings,
 } from "lucide-react"
 
-import { UserButton, useUser } from "@clerk/nextjs"
+import { UserButton, useUser, SignInButton } from "@clerk/nextjs"
 import { ThemeToggleSidebar } from "@/components/theme-toggle-sidebar"
 
 export function AppSidebar() {
@@ -109,22 +109,34 @@ export function AppSidebar() {
             <SidebarFooter>
                 <div className="flex items-center justify-between gap-2 px-2 py-2">
 
-                    <div className="flex flex-col text-xs">
-                        <span className="font-medium">
-                            {user?.fullName}
-                        </span>
-                        <span className="text-muted-foreground">
-                            {user?.primaryEmailAddress?.emailAddress}
-                        </span>
-                    </div>
+                    {user ? (
+                        <>
+                            <div className="flex flex-col text-xs">
+                                <span className="font-medium">
+                                    {user.fullName}
+                                </span>
+                                <span className="text-muted-foreground">
+                                    {user.primaryEmailAddress?.emailAddress}
+                                </span>
+                            </div>
 
-                    <UserButton
-                        appearance={{
-                            elements: {
-                                avatarBox: "h-8 w-8",
-                            },
-                        }}
-                    />
+                            <UserButton
+                                appearance={{
+                                    elements: {
+                                        avatarBox: "h-8 w-8",
+                                    },
+                                }}
+                            />
+                        </>
+                    ) : (
+                        <div className="w-full flex justify-center py-1">
+                            <SignInButton mode="modal">
+                                <button className="w-full text-center py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-md text-sm font-medium transition-colors">
+                                    Sign In
+                                </button>
+                            </SignInButton>
+                        </div>
+                    )}
 
                 </div>
             </SidebarFooter>
