@@ -10,6 +10,7 @@ interface Deployment {
     projectId: string;
     fileId: string;
     slug: string;
+    url?: string;
     createdAt: string;
 }
 
@@ -72,7 +73,7 @@ export default function DeploymentsPage() {
                     </div>
                 ) : (
                     deployments.map((dep) => {
-                        const url = `http://localhost:8000/d/${dep.slug}`;
+                        const url = dep.url || `http://localhost:8000/d/${dep.slug}`;
                         return (
                             <div
                                 key={dep.id}

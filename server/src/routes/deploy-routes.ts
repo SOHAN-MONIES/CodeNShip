@@ -2,6 +2,8 @@ import { Router } from "express";
 import { db } from "../db/connection";
 import { deployments } from "../db/schema";
 import { eq, desc } from "drizzle-orm";
+import fs from "fs";
+import path from "path";
 
 const router = Router();
 
@@ -14,20 +16,58 @@ router.post("/", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        // Generate a random 6-character slug
-        const slug = Math.random().toString(36).substring(2, 8);
+        // 1. Create temporary index.html
+        const tempFilePath = path.join(__dirname, "../../index.html");
+        fs.writeFileSync(tempFilePath, content);
 
+        // 2. Deploy to Vercel
+        const html = fs.readFileSync(tempFilePath, "utf-8");
+
+        const vercelResponse = await fetch("https://api.vercel.com/v13/deployments", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                name: "my-html-site",
+                files: [
+                    {
+                        file: "index.html",
+                        data: html,
+                    },
+                ],
+                projectSettings: {
+                    framework: null, // important for plain HTML
+                },
+            }),
+        });
+
+        const data = await vercelResponse.json();
+        
+        // 3. Delete temporary index.html
+        fs.unlinkSync(tempFilePath);
+
+        if (!vercelResponse.ok) {
+            throw new Error(data.error?.message || "Vercel deployment failed");
+        }
+
+        const liveUrl = `https://${data.url}`;
+        console.log("Live URL:", liveUrl);
+
+        // 4. Save to database
         const newDeployment = await db.insert(deployments).values({
             projectId,
             fileId,
-            slug,
+            slug: data.id, // Using Vercel deployment ID as slug
+            url: liveUrl,
             content
         }).returning();
 
         res.json(newDeployment[0]);
     } catch (error) {
         console.error("Error creating deployment:", error);
-        res.status(500).json({ error: "Failed to create deployment" });
+        res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create deployment" });
     }
 });
 

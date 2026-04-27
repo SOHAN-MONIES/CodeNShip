@@ -274,12 +274,13 @@ export default function ProjectWorkspace() {
                 }),
             });
 
+            const data = await res.json();
+
             if (!res.ok) {
-                throw new Error("Deploy failed");
+                throw new Error(data.error || "Deploy failed");
             }
 
-            const data = await res.json();
-            const deployUrl = `http://localhost:8000/d/${data.slug}`;
+            const deployUrl = data.url;
             
             // For now just alert the URL, we could also open it in a new tab or show a toast
             alert(`Deployed successfully! View at: ${deployUrl}`);
